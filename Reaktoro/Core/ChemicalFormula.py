@@ -19,7 +19,6 @@
 from reaktoro import *
 import pytest
 
-
 def testChemicalFormula():
 
     formula = ChemicalFormula("H2O")
