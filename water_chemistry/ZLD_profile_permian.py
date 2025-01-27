@@ -7,6 +7,16 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import csv
 
+__all__ = [
+    "NaOH",
+    "permian_brine",
+    "permian_step_1",
+    "plot_step_1_permian",
+    "permian_step_2_alt",
+    "plot_step_2_alt",
+    "permian_step_3_alt",
+    "plot_step_3_alt",
+]
 
 global molar_mass
 molar_mass = {
@@ -186,10 +196,9 @@ def permian_brine(
     props = ChemicalProps(state)
 
     output = {'pH': float(aprops.pH()),
-              'density': props.phaseProps("AqueousPhase").density(),
+              'density': float(props.phaseProps("AqueousPhase").density()),
               'temperature': float(aprops.temperature()) - 273.15,
               'pressure': float(aprops.pressure()),
-              'Amount': state.speciesAmounts().asarray()
               }
     
     outflow_species = ["H2O", "Ca+2", "Cl-", "SO4-2",
@@ -279,9 +288,9 @@ def permian_step_1(
 permian_brine_output, permian_brine_state, permian_brine_system, permian_brine_props = permian_brine(RR=0.5)
 output_1_PB, props_1_PB, outflow_mass_1_PB, out_brucite_1_PB, state_1_PB, system_1_PB = permian_step_1(state = permian_brine_state,
                                                                                      system=permian_brine_system,
-                                                                                     add_NaOH_conc='solid',
+                                                                                     add_NaOH_conc=5,
                                                                                      add_NaOH_vol=0.025,
-                                                                                     add_NaOH_mass=3
+                                                                                     add_NaOH_mass=3,
                                                                              )
 print('Step One simulation')
 print('pH=', output_1_PB['pH'])
@@ -1062,21 +1071,21 @@ cbar.set_label('Ca recovery ratio (%)')
 plt.rcParams['figure.dpi']=300
 plt.show()
 
-# Plot MgCO3
-fig,  axes= plt.subplots(1,1)
-ax1 = axes
+# # Plot MgCO3
+# fig,  axes= plt.subplots(1,1)
+# ax1 = axes
 
-im1 = ax1.imshow([Magnesites[i-1] for i in range(len(pHs),0,-1)], cmap="YlOrBr", interpolation='none')
-# ax1.set_aspect(1)
-ax1.set(xticks=np.arange(0, len(CO2s)+1, 4), xticklabels=np.arange(0, int(np.max(CO2s))+1, int(np.max(CO2s)/5)))
-ax1.set(yticks=np.arange(0, len(NaOHs)+1, 4), yticklabels=[0.1, 0.08, 0.06, 0.04, 0.02, 0])
-ax1.set_xlabel('CO2 addition (g)')
-ax1.set_ylabel('5M NaOH addition (L)')
-# cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
-cbar = fig.colorbar(im1)
-cbar.set_label('MgCO3 (mol)')
-plt.rcParams['figure.dpi']=300
-plt.show()
+# im1 = ax1.imshow([Magnesites[i-1] for i in range(len(pHs),0,-1)], cmap="YlOrBr", interpolation='none')
+# # ax1.set_aspect(1)
+# ax1.set(xticks=np.arange(0, len(CO2s)+1, 4), xticklabels=np.arange(0, int(np.max(CO2s))+1, int(np.max(CO2s)/5)))
+# ax1.set(yticks=np.arange(0, len(NaOHs)+1, 4), yticklabels=[0.1, 0.08, 0.06, 0.04, 0.02, 0])
+# ax1.set_xlabel('CO2 addition (g)')
+# ax1.set_ylabel('5M NaOH addition (L)')
+# # cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+# cbar = fig.colorbar(im1)
+# cbar.set_label('MgCO3 (mol)')
+# plt.rcParams['figure.dpi']=300
+# plt.show()
 
 # Plot Mg(OH)2
 fig,  axes= plt.subplots(1,1)
@@ -1094,21 +1103,21 @@ cbar.set_label('Mg(OH)2 (mmol)')
 plt.rcParams['figure.dpi']=300
 plt.show()
 
-# Plot purity of CaCO3
-fig,  axes= plt.subplots(1,1)
-ax1 = axes
+# # Plot purity of CaCO3
+# fig,  axes= plt.subplots(1,1)
+# ax1 = axes
 
-im1 = ax1.imshow([Ca_Purity[i-1] for i in range(len(pHs),0,-1)], cmap="YlOrBr", interpolation='none')
-# ax1.set_aspect(1)
-ax1.set(xticks=np.arange(0, len(CO2s)+1, 4), xticklabels=np.arange(0, np.max(CO2s)*1.01, int(np.max(CO2s)/5)))
-ax1.set(yticks=np.arange(0, len(NaOHs)+1, 4), yticklabels=[0.1, 0.08, 0.06, 0.04, 0.02, 0])
-ax1.set_xlabel('CO2 addition (mg)')
-ax1.set_ylabel('5M NaOH addition (L)')
-# cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
-cbar = fig.colorbar(im1)
-cbar.set_label('Calcite purity (%)')
-plt.rcParams['figure.dpi']=300
-plt.show()
+# im1 = ax1.imshow([Ca_Purity[i-1] for i in range(len(pHs),0,-1)], cmap="YlOrBr", interpolation='none')
+# # ax1.set_aspect(1)
+# ax1.set(xticks=np.arange(0, len(CO2s)+1, 4), xticklabels=np.arange(0, np.max(CO2s)*1.01, int(np.max(CO2s)/5)))
+# ax1.set(yticks=np.arange(0, len(NaOHs)+1, 4), yticklabels=[0.1, 0.08, 0.06, 0.04, 0.02, 0])
+# ax1.set_xlabel('CO2 addition (mg)')
+# ax1.set_ylabel('5M NaOH addition (L)')
+# # cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+# cbar = fig.colorbar(im1)
+# cbar.set_label('Calcite purity (%)')
+# plt.rcParams['figure.dpi']=300
+# plt.show()
 
 # #%%  best rr=99.88% (9000mg CO2 + 0.08L NaOH)
 # i, j = 12, 16
