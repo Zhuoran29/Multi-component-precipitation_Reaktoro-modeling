@@ -1,5 +1,0 @@
-if(WIN32)
-    configure_file(.env.win ${CMAKE_SOURCE_DIR}/.env @ONLY)
-else()
-    configure_file(.env.unix ${CMAKE_SOURCE_DIR}/.env @ONLY)
-endif()

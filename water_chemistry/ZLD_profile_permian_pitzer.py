@@ -7,6 +7,16 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import csv
 
+__all__ = [
+    "NaOH",
+    "permian_brine",
+    "permian_step_1",
+    "plot_step_1_permian",
+    "permian_step_2_alt",
+    "plot_step_2_alt",
+    "permian_step_3_alt",
+    "plot_step_3_alt",
+]
 
 global molar_mass
 molar_mass = {
@@ -91,22 +101,23 @@ def NaOH(conc = 5, # mol/L
 #%% Original solution (Permian basin)
 def permian_brine(
         feed_props = {    
-            "Na+"  : 2810,
-            "Cl-"  : 5090,
-            "SO4-2" : 1115,
-            "Mg+2" : 161,
-            "Ca+2" : 610,
+            "Na+"  : 40896,
+            "Cl-"  : 78648,
+            "SO4-2" : 496.3,
+            "Mg+2" : 745,
+            "Ca+2" : 3821,
+            # "H4SiO4":   108/28.1*93.1,
             },
         pressure = 1.01325, # bar
         temp = 25, 
-        RR = 0.8,
+        RR = 0.5,
     ): 
     # db = PhreeqcDatabase("thermoddem-v1.10.dat")
-    # db = PhreeqcDatabase("pitzer.dat")
-    db = PhreeqcDatabase("minteq.v4.dat")
+    db = PhreeqcDatabase("pitzer.dat")
+    # db = PhreeqcDatabase("minteq.v4.dat")
     # db = PhreeqcDatabase("phreeqc.dat")
 
-    solution = AqueousPhase(speciate("H O C Na Cl Ca Mg K S"))
+    solution = AqueousPhase(speciate("H O C Na Cl Ca Mg K S Si"))
     solution.set(ActivityModelPitzer())
     # solution.set(ActivityModelDebyeHuckel())
 
@@ -123,6 +134,7 @@ def permian_brine(
     Epsomite = MineralPhase("Epsomite")
     Brucite = MineralPhase("Brucite")
     Portlandite = MineralPhase("Portlandite")
+    Chalcedony = MineralPhase("Chalcedony")
     
 
     system = ChemicalSystem(db, 
@@ -136,6 +148,7 @@ def permian_brine(
                             Epsomite,
                             Brucite,
                             Portlandite,
+                            Chalcedony,
                             )
 
     specs = EquilibriumSpecs(system)
@@ -168,7 +181,7 @@ def permian_brine(
     # conditions.setUpperBoundPressure(1000.0, "bar")
     conditions.setLowerBoundTemperature(25, "celsius")
     conditions.setUpperBoundTemperature(200, "celsius")
-    conditions.pH(8)
+    conditions.pH(6.6)
     conditions.charge(0.0)
     conditions.volume(0.001, "m3")
 
@@ -183,10 +196,9 @@ def permian_brine(
     props = ChemicalProps(state)
 
     output = {'pH': float(aprops.pH()),
-              'density': props.phaseProps("AqueousPhase").density(),
+              'density': float(props.phaseProps("AqueousPhase").density()),
               'temperature': float(aprops.temperature()) - 273.15,
               'pressure': float(aprops.pressure()),
-              'Amount': state.speciesAmounts().asarray()
               }
     
     outflow_species = ["H2O", "Ca+2", "Cl-", "SO4-2",
@@ -198,101 +210,14 @@ def permian_brine(
 
     return output, state, system, props
 
-ori_output, ori_state, ori_system, ori_props = permian_brine(RR=0.7)
-#%% Step 0: Plot
-def plot_step_0_permian(       
-        max_RR = 0.5, 
-        runs = 50,
-        ):
-    NaCls = []
-    Anhydrites = []
-    Magnesites = []
-    Calcites = []
-    Polyhalites = []
-    Glauberites = []
-    Gypsums = []
-    temperatures = []
-    pressures = []
-    pHs = []
-    Brucites = []
-    Portlandites = []
-    Nas = []
-    Mgs = []
-    Cas = []
-    Mg_rr = []
-    vols = []
-    TDSs = []
-
-    RRs = [i * max_RR / runs for i in range(0,runs+1,1)]
-
-    for RR in RRs:
-        ori_output, ori_state, ori_system, ori_props = permian_brine(RR=RR)
-
-        Calcites.append(float(ori_props.speciesAmount("Calcite"))*1000)
-        Brucites.append(float(ori_props.speciesAmount("Brucite"))*1000)
-        Magnesites.append(float(ori_props.speciesAmount("Magnesite"))*1000)
-        Gypsums.append(float(ori_props.speciesAmount("Gypsum"))*1000)
-
-        temperatures.append(ori_output['temperature'])
-        pressures.append(ori_output['pressure'])
-        pHs.append(ori_output['pH'])
-        TDSs.append(10.72 / (1-RR))
-        vols.append(float(ori_props.phaseProps("AqueousPhase").volume())*1000)
-
-        # print(masses)
-    fig, ax1 = plt.subplots()
-
-    # Ca_concs = [ Cas[i]*40.087/vols[i] for i in range(len(NaOHs))]
-    # Na_concs = [ Nas[i]*22.99/vols[i] for i in range(len(NaOHs))]
-    # Mg_concs = [ Mgs[i]*24.305/vols[i] for i in range(len(NaOHs))]
-
-    # calcites_conc = [ Calcites[i] / vols[i] for i in range(len(vols))]
-    # brucites_conc = [ Brucites[i] / vols[i] for i in range(len(vols))]
-    # magnesites_conc = [ Magnesites[i] / vols[i] for i in range(len(vols))]
-    Gypsums_conc = [ Gypsums[i] / vols[i] for i in range(len(vols)) ]
-
-    ax2 = ax1.twinx()
-    ax1.plot(RRs, Gypsums_conc, 'b-', label='CaSO4 2H2O')
-    ax2.plot(RRs, TDSs, 'r-', label='Brine TDS (g/L)')
-
-    ax1.set_xlabel('Desal recovery rate')
-    ax1.set_ylabel('Gypsum (mmol/L)', color='b')
-    ax2.set_ylabel('Brine TDS (g/L)', color='r')
-
-    ax1.set_ylim(0, 150)
-    ax2.set_ylim(0, 200)
-
-    ax1.legend(loc='upper center')
-    ax2.legend(loc = 'best')
-    plt.show()
-
-    # print('Max vol: ', maxNaOH_vol, "Conc: ", NaOH_conc)
-    return Gypsums_conc, RRs
-
-
-# Run function
-max_RR = 0.95
-Gypsums_conc, RRs = plot_step_0_permian(
-                                max_RR= max_RR,
-                                runs = 50,
-                                )
-#%% Step 0 Export csv
-results = {"RR": RRs,
-        "gypsum": Gypsums_conc,
-        }
-     
-df = pd.DataFrame(results)
-outpath = '/Users/zhuoranzhang/Documents/Crystallization_paper/ZLD_profile_results/'
-filename = f'Permian_S0_RR.csv'
-
-df.to_csv(outpath+filename)
-print(f'csv created for step 0')
+ori_output, ori_state, ori_system, ori_props = permian_brine(RR=0.5)
 #%% Step 1: Add NaOH to separate Mg
 def permian_step_1(
         state, system,
         pressure = 1.01325, # bar
         add_NaOH_vol = 0.0365, # L
         add_NaOH_conc = 5, # mol/L
+        add_NaOH_mass = 5, # gram
         temp = 25, 
     ): 
     # solution = AqueousPhase(speciate("H O C Na Cl Ca Mg K S"))
@@ -311,14 +236,23 @@ def permian_step_1(
     # solver = EquilibriumSolver(specs)
     solver = SmartEquilibriumSolver(specs)
 
+
     # Additional chemicals (5 M NaOH)
-    NaOH_props, masses = NaOH(conc = add_NaOH_conc)
+    if add_NaOH_conc == 'solid':
+        Na_mass = add_NaOH_mass * 23/40 # gram
+        OH_mass = add_NaOH_mass * 17/40 # gram
+        H2O_mass = 0
 
-    H2O_mass, Na_mass, OH_mass = masses # g/L
+        state.add("Na+"  ,  Na_mass  / 1000, "kg")
+        state.add("OH-"  ,  OH_mass  / 1000, "kg")
+        state.add("H2O"  ,  H2O_mass  / 1000, "kg")
+    else:
+        NaOH_props, masses = NaOH(conc = add_NaOH_conc)
+        H2O_mass, Na_mass, OH_mass = masses # g/L
 
-    state.add("Na+"  ,  Na_mass * add_NaOH_vol / 1000, "kg")
-    state.add("OH-"  ,  OH_mass * add_NaOH_vol / 1000, "kg")
-    state.add("H2O"  ,  H2O_mass * add_NaOH_vol / 1000, "kg")
+        state.add("Na+"  ,  Na_mass * add_NaOH_vol / 1000, "kg")
+        state.add("OH-"  ,  OH_mass * add_NaOH_vol / 1000, "kg")
+        state.add("H2O"  ,  H2O_mass * add_NaOH_vol / 1000, "kg")
 
     conditions = EquilibriumConditions(specs)
     conditions.temperature(temp, "celsius")
@@ -343,7 +277,7 @@ def permian_step_1(
               'Amount': state.speciesAmounts().asarray()
               }
     out_brucite = float(props.speciesAmount("Brucite")) * 58.3197 * 1000 # mg
-    outflow_species = ["H2O", "Ca+2", "Cl-", "SO4-2", "CaOH+", "CaSO4", "MgOH+", "MgSO4", "NaSO4-",
+    outflow_species = ["H2O", "Ca+2", "Cl-", "SO4-2", "MgOH+",
                        "Mg+2", "Na+", "OH-", "K+", "HCO3-", "CO3-2"]
     outflow_mass = dict(zip(outflow_species,
                             [float(props.speciesAmount(i)) * molar_mass[i] for i in outflow_species])) # mg
@@ -351,11 +285,12 @@ def permian_step_1(
     return output, props, outflow_mass, out_brucite, state, system
 
 
-permian_brine_output, permian_brine_state, permian_brine_system, permian_brine_props = permian_brine(RR=0.7)
+permian_brine_output, permian_brine_state, permian_brine_system, permian_brine_props = permian_brine(RR=0.5)
 output_1_PB, props_1_PB, outflow_mass_1_PB, out_brucite_1_PB, state_1_PB, system_1_PB = permian_step_1(state = permian_brine_state,
                                                                                      system=permian_brine_system,
                                                                                      add_NaOH_conc=5,
-                                                                                     add_NaOH_vol=0.009,
+                                                                                     add_NaOH_vol=0.025,
+                                                                                     add_NaOH_mass=3,
                                                                              )
 print('Step One simulation')
 print('pH=', output_1_PB['pH'])
@@ -367,7 +302,7 @@ print('Mg+2 (mg)', (float(props_1_PB.speciesAmount('Mg+2')))* molar_mass['Mg+2']
 print('Ca rec rate', float(props_1_PB.speciesAmount('Portlandite')) / float(props_1_PB.elementAmount('Ca')))
 print('Mg rec rate', float(props_1_PB.speciesAmount('Brucite')) / float(props_1_PB.elementAmount('Mg')))
 
-#%% Step 1: Plot
+#%% Step 1: Plot (add solution)
 def plot_step_1_permian(       
         maxNaOH_vol = 0.5, # L
         NaOH_conc = 1, # mol/L
@@ -448,17 +383,13 @@ def plot_step_1_permian(
     # ax2 = ax1.twinx()
     ax1.plot(pHs, Portlandites, 'b-', label='Ca(OH)2')
     ax1.plot(pHs, Brucites, 'r-', label='Mg(OH)2')
-    ax1.plot(pHs, Gypsums, 'g-', label='CaSO4 2H2O')
-
-    NaOHs_adjusted = [i * (1-RR) for i in NaOHs]
-    # ax2.plot(pHs, NaOHs_adjusted, 'y-', label='NaOH vol')
+    ax1.plot(pHs, Gypsums, 'g-', label='CaSO4')
 
 
     ax1.set_xlabel('pH')
     ax1.set_ylabel('Solid (mmol/L)', color='k')
     # ax2.set_ylabel('Vol (L)', color='k')
 
-    # ax2.set_ylim(0, 0.02)
     ax1.legend(loc='upper center')
     # ax2.legend(loc = 'best')
     plt.show()
@@ -468,14 +399,120 @@ def plot_step_1_permian(
 
 
 # Run function
-maxNaOH_vol = 2.5 # L
-NaOH_conc = 0.1 # mol/L
-RR = 0.7
+maxNaOH_vol = 0.1 # L
+NaOH_conc = 5 # mol/L
+RR = 0.5
 Brucites, Portlandites, Mg_rr, pHs, vols, NaOHs = plot_step_1_permian(
                                                     maxNaOH_vol=maxNaOH_vol,
                                                     NaOH_conc = NaOH_conc,
                                                     RR = RR,
                                                     runs = 100,
+                                                    )
+#%% Step 1: Plot (add solid)
+def plot_step_1_permian_solid(     
+        maxNaOH_mass = 5, # g
+        NaOH_conc = 'solid', # mol/L
+        RR = 0.5, 
+        runs = 50,
+        ):
+    NaCls = []
+    Anhydrites = []
+    Magnesites = []
+    Calcites = []
+    Polyhalites = []
+    Glauberites = []
+    Gypsums = []
+    temperatures = []
+    pressures = []
+    pHs = []
+    Brucites = []
+    Portlandites = []
+    Nas = []
+    Mgs = []
+    Cas = []
+    Mg_rr = []
+    vols = []
+
+    NaOHs = [i * maxNaOH_mass / runs for i in range(0,runs+1,1)]
+    for v in NaOHs:
+        ori_output, ori_state, ori_system, ori_props = permian_brine(RR=RR)
+
+        output, props, outflow_mass, out_brucite, state, system = permian_step_1(
+            state=ori_state, 
+            system=ori_system,
+            pressure = 1.01325, # bar
+            add_NaOH_mass = v, # L
+            add_NaOH_conc = 'solid', # mol/L
+            temp = 25, 
+            )
+
+        Calcites.append(float(props.speciesAmount("Calcite"))*1000)
+        Brucites.append(float(props.speciesAmount("Brucite"))*1000)
+        Magnesites.append(float(props.speciesAmount("Magnesite"))*1000)
+        Portlandites.append(float(props.speciesAmount("Portlandite"))*1000)
+        Gypsums.append(float(props.speciesAmount("Gypsum"))*1000)
+
+        temperatures.append(output['temperature'])
+        pressures.append(output['pressure'])
+        pHs.append(output['pH'])
+
+        Cas.append(float(props.speciesAmount("Ca+2"))
+                #    +float(props.speciesAmount("CaSO4"))+
+                #    float(props.speciesAmount("CaCl+"))+
+                #    float(props.speciesAmount("CaCl2"))
+                   )
+        Nas.append(float(props.speciesAmount("Na+"))
+                #    +float(props.speciesAmount("NaSO4-"))
+                   )
+        Mgs.append(float(props.speciesAmount("Mg+2"))
+                #    +float(props.speciesAmount("MgSO4"))
+                #    +float(props.speciesAmount("MgCl+"))
+                #    +float(props.speciesAmount("MgOH+"))
+                   )
+
+        vols.append(float(props.phaseProps("AqueousPhase").volume())*1000)
+
+        Mg_rr.append(props.speciesAmount("Brucite")/float(props.elementAmount("Mg"))*100)
+
+        # print(masses)
+    fig, ax1 = plt.subplots()
+
+    Ca_concs = [ Cas[i]*40.087/vols[i] for i in range(len(NaOHs))]
+    Na_concs = [ Nas[i]*22.99/vols[i] for i in range(len(NaOHs))]
+    Mg_concs = [ Mgs[i]*24.305/vols[i] for i in range(len(NaOHs))]
+
+    calcites_conc = [ Calcites[i] / vols[i] for i in range(len(vols))]
+    brucites_conc = [ Brucites[i] / vols[i] for i in range(len(vols))]
+    magnesites_conc = [ Magnesites[i] / vols[i] for i in range(len(vols))]
+    Portlandites_conc = [ Portlandites[i] / vols[i] for i in range(len(vols)) ]
+
+    # ax2 = ax1.twinx()
+    ax1.plot(pHs, Portlandites, 'b-', label='Ca(OH)2')
+    ax1.plot(pHs, Brucites, 'r-', label='Mg(OH)2')
+    ax1.plot(pHs, Gypsums, 'g-', label='CaSO4')
+
+
+    ax1.set_xlabel('pH')
+    ax1.set_ylabel('Solid (mmol/L)', color='k')
+    # ax2.set_ylabel('Vol (L)', color='k')
+
+    ax1.legend(loc='upper center')
+    # ax2.legend(loc = 'best')
+    plt.show()
+
+    print('Max vol: ', maxNaOH_vol, "Conc: ", NaOH_conc)
+    return Brucites, Portlandites, Mg_rr, pHs, vols, NaOHs
+
+
+# Run function
+maxNaOH_mass = 10 # g
+NaOH_conc = 'solid' # mol/L
+RR = 0.5
+Brucites, Portlandites, Mg_rr, pHs, vols, NaOHs = plot_step_1_permian_solid(
+                                                    maxNaOH_mass=maxNaOH_mass,
+                                                    NaOH_conc = NaOH_conc,
+                                                    RR = RR,
+                                                    runs = 50,
                                                     )
 
 #%% Step 1 Export csv
@@ -489,7 +526,7 @@ results = {"added_NaOH (L)": NaOHs,
      
 df = pd.DataFrame(results)
 outpath = '/Users/zhuoranzhang/Documents/Crystallization_paper/ZLD_profile_results/'
-filename = f'KBH_S1_RR{RR}_NaOH{NaOH_conc}M.csv'
+filename = f'Permian_S1_RR{RR}_NaOH{NaOH_conc}M.csv'
 
 df.to_csv(outpath+filename)
 print(f'csv created for RR={RR} and NaOH conc of {NaOH_conc}')
@@ -585,11 +622,11 @@ def permian_step_2(
 
 
 # Run for case
-permian_brine_output, permian_brine_state, permian_brine_system, permian_brine_props = permian_brine(RR=0.7)
+permian_brine_output, permian_brine_state, permian_brine_system, permian_brine_props = permian_brine(RR=0.5)
 output_1_PB, props_1_PB, outflow_mass_1_PB, out_brucite_1_PB, state_1_PB, system_1_PB = permian_step_1(state = permian_brine_state,
                                                                                      system=permian_brine_system,
                                                                                      add_NaOH_conc=5,
-                                                                                     add_NaOH_vol=0.009,
+                                                                                     add_NaOH_vol=0.025,
                                                                              )
 output_2_PB, props_2_PB, out_brucite_2, state_2_PB, system_2_PB = permian_step_2(
                                                                              state= state_1_PB,
@@ -648,11 +685,11 @@ def plot_step_2(
         cas = []
         ca_rr =[]
         for j in CO2s:
-            permian_brine_output, permian_brine_state, permian_brine_system, permian_brine_props = permian_brine(RR=0.9)
+            permian_brine_output, permian_brine_state, permian_brine_system, permian_brine_props = permian_brine(RR=0.5)
             output_1_PB, props_1_PB, outflow_mass_1_PB, out_brucite_1_PB, state_1_PB, system_1_PB = permian_step_1(state = permian_brine_state,
                                                                                                 system=permian_brine_system,
                                                                                                 add_NaOH_conc=5,
-                                                                                                add_NaOH_vol=0.027,
+                                                                                                add_NaOH_vol=0.025,
                                                                                         )
             output_2_PB, props_2_PB, out_brucite_2, state_2_PB, system_2_PB = permian_step_2(
                                                                                         state= state_1_PB,
@@ -799,16 +836,16 @@ def permian_step_2_alt(
 
     H2O_mass, Na_mass, OH_mass = masses # g/L
 
-    # state.add("CO2(g)"  ,  add_CO2, "mg")
+    state.add("CO2(g)"  ,  add_CO2, "mg")
 
-    add_H2CO3 = add_CO2 / 44.009 * 62.03 # mg
-    remove_H2O = add_CO2 /44.009 * 18.021 # mg
+    # add_H2CO3 = add_CO2 / 44.009 * 62.03 # mg
+    # remove_H2O = add_CO2 /44.009 * 18.021 # mg
     
-    state.add("H2CO3", add_H2CO3, "mg")
+    # state.add("H2CO3", add_H2CO3, "mg")
 
     state.add("Na+"  ,  Na_mass * add_NaOH_vol / 1000, "kg")
     state.add("OH-"  ,  OH_mass * add_NaOH_vol / 1000, "kg")
-    state.add("H2O"  ,  H2O_mass * add_NaOH_vol / 1000 - remove_H2O / 1e6, "kg")
+    state.add("H2O"  ,  H2O_mass * add_NaOH_vol / 1000, "kg")
 
     state.set("Brucite", 0, "kg")
 
@@ -857,18 +894,18 @@ def permian_step_2_alt(
 
 
 # Run for case
-permian_brine_output, permian_brine_state, permian_brine_system, permian_brine_props = permian_brine(RR=0.7)
+permian_brine_output, permian_brine_state, permian_brine_system, permian_brine_props = permian_brine(RR=0.5)
 output_1_PB, props_1_PB, outflow_mass_1_PB, out_brucite_1_PB, state_1_PB, system_1_PB = permian_step_1(state = permian_brine_state,
                                                                                      system=permian_brine_system,
                                                                                      add_NaOH_conc=5,
-                                                                                     add_NaOH_vol=0.009,
+                                                                                     add_NaOH_vol=0.025,
                                                                              )
 output_2_PB, props_2_PB, state_2_PB, system_2_PB = permian_step_2_alt(
                                                                     state= state_1_PB,
                                                                     system=system_1_PB,
                                                                     add_NaOH_conc=5,
-                                                                    add_NaOH_vol=0.025,
-                                                                    add_CO2 = 2750,
+                                                                    add_NaOH_vol=0.08,
+                                                                    add_CO2 = 9000,
                                                                 #  CO2_fug=0.0000000001,
                                                                     )
 print('Step 2 simulation')
@@ -931,11 +968,11 @@ def plot_step_2_alt(
         ca_rr =[]
         ca_purity=[]
         for j in CO2s:
-            permian_brine_output, permian_brine_state, permian_brine_system, permian_brine_props = permian_brine(RR=0.7)
+            permian_brine_output, permian_brine_state, permian_brine_system, permian_brine_props = permian_brine(RR=0.5)
             output_1_PB, props_1_PB, outflow_mass_1_PB, out_brucite_1_PB, state_1_PB, system_1_PB = permian_step_1(state = permian_brine_state,
                                                                                                 system=permian_brine_system,
                                                                                                 add_NaOH_conc=5,
-                                                                                                add_NaOH_vol=0.009,
+                                                                                                add_NaOH_vol=0.025,
                                                                                         )
             output_2_PB, props_2_PB, state_2_PB, system_2_PB = permian_step_2_alt(
                                                                                         state= state_1_PB,
@@ -991,21 +1028,24 @@ def plot_step_2_alt(
     
 # make plot
 CO2s, NaOHs, pHs, Ca_rr, Magnesites, Brucites, Calcites, Portlandites, Ca_Purity, Vols = plot_step_2_alt(      
-                                        maxNaOH_vol = 0.05, # L
+                                        maxNaOH_vol = 0.1, # L
                                         NaOH_conc = 5, # mol/L
-                                        max_CO2 =  5000, # mg 
+                                        max_CO2 =  15000, # mg 
                                         runs_NaOH = 20,
                                         runs_CO2 = 20
                                         )
+
 CO2s = [i/1000 for i in CO2s]
+
 # Plot pH
 fig,  axes= plt.subplots(1,1)
 ax1 = axes
 
+
 im1 = ax1.imshow([pHs[i-1] for i in range(len(pHs),0,-1)], cmap='YlGnBu', interpolation='none', vmax =13)
 # ax1.set_aspect(1)
 ax1.set(xticks=np.arange(0, len(CO2s)+1, 4), xticklabels=np.arange(0, int(np.max(CO2s))+1, int(np.max(CO2s)/5)))
-ax1.set(yticks=np.arange(0, len(NaOHs)+1, 4), yticklabels=[0.05, 0.04, 0.03, 0.02, 0.01, 0])
+ax1.set(yticks=np.arange(0, len(NaOHs)+1, 4), yticklabels=[0.1, 0.08, 0.06, 0.04, 0.02, 0])
 
 ax1.set_xlabel('CO2 addition (g)')
 ax1.set_ylabel('5M NaOH addition (L)')
@@ -1022,7 +1062,7 @@ ax1 = axes
 im1 = ax1.imshow([Ca_rr[i-1] for i in range(len(pHs),0,-1)], cmap=plt.cm.Reds, interpolation='none')
 # ax1.set_aspect(1)
 ax1.set(xticks=np.arange(0, len(CO2s)+1, 4), xticklabels=np.arange(0, int(np.max(CO2s))+1, int(np.max(CO2s)/5)))
-ax1.set(yticks=np.arange(0, len(NaOHs)+1, 4), yticklabels=[0.05, 0.04, 0.03, 0.02, 0.01, 0])
+ax1.set(yticks=np.arange(0, len(NaOHs)+1, 4), yticklabels=[0.1, 0.08, 0.06, 0.04, 0.02, 0])
 ax1.set_xlabel('CO2 addition (g)')
 ax1.set_ylabel('5M NaOH addition (L)')
 # cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
@@ -1031,21 +1071,21 @@ cbar.set_label('Ca recovery ratio (%)')
 plt.rcParams['figure.dpi']=300
 plt.show()
 
-# Plot MgCO3
-fig,  axes= plt.subplots(1,1)
-ax1 = axes
+# # Plot MgCO3
+# fig,  axes= plt.subplots(1,1)
+# ax1 = axes
 
-im1 = ax1.imshow([Magnesites[i-1] for i in range(len(pHs),0,-1)], cmap="YlOrBr", interpolation='none')
-# ax1.set_aspect(1)
-ax1.set(xticks=np.arange(0, len(CO2s)+1, 4), xticklabels=np.arange(0, int(np.max(CO2s))+1, int(np.max(CO2s)/5)))
-ax1.set(yticks=np.arange(0, len(NaOHs)+1, 4), yticklabels=[0.05, 0.04, 0.03, 0.02, 0.01, 0])
-ax1.set_xlabel('CO2 addition (g)')
-ax1.set_ylabel('5M NaOH addition (L)')
-# cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
-cbar = fig.colorbar(im1)
-cbar.set_label('MgCO3 (mol)')
-plt.rcParams['figure.dpi']=300
-plt.show()
+# im1 = ax1.imshow([Magnesites[i-1] for i in range(len(pHs),0,-1)], cmap="YlOrBr", interpolation='none')
+# # ax1.set_aspect(1)
+# ax1.set(xticks=np.arange(0, len(CO2s)+1, 4), xticklabels=np.arange(0, int(np.max(CO2s))+1, int(np.max(CO2s)/5)))
+# ax1.set(yticks=np.arange(0, len(NaOHs)+1, 4), yticklabels=[0.1, 0.08, 0.06, 0.04, 0.02, 0])
+# ax1.set_xlabel('CO2 addition (g)')
+# ax1.set_ylabel('5M NaOH addition (L)')
+# # cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+# cbar = fig.colorbar(im1)
+# cbar.set_label('MgCO3 (mol)')
+# plt.rcParams['figure.dpi']=300
+# plt.show()
 
 # Plot Mg(OH)2
 fig,  axes= plt.subplots(1,1)
@@ -1053,9 +1093,9 @@ ax1 = axes
 
 im1 = ax1.imshow([Brucites[i-1] for i in range(len(pHs),0,-1)], cmap="YlOrBr", interpolation='none')
 # ax1.set_aspect(1)
-ax1.set(xticks=np.arange(0, len(CO2s)+1, 4), xticklabels=np.arange(0, int(np.max(CO2s))+1, int(np.max(CO2s)/5)))
-ax1.set(yticks=np.arange(0, len(NaOHs)+1, 4), yticklabels=[0.05, 0.04, 0.03, 0.02, 0.01, 0])
-ax1.set_xlabel('CO2 addition (g)')
+ax1.set(xticks=np.arange(0, len(CO2s)+1, 4), xticklabels=np.arange(0, np.max(CO2s)*1.01, int(np.max(CO2s)/5)))
+ax1.set(yticks=np.arange(0, len(NaOHs)+1, 4), yticklabels=[0.1, 0.08, 0.06, 0.04, 0.02, 0])
+ax1.set_xlabel('CO2 addition (mg)')
 ax1.set_ylabel('5M NaOH addition (L)')
 # cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
 cbar = fig.colorbar(im1)
@@ -1063,21 +1103,21 @@ cbar.set_label('Mg(OH)2 (mmol)')
 plt.rcParams['figure.dpi']=300
 plt.show()
 
-# Plot purity of CaCO3
-fig,  axes= plt.subplots(1,1)
-ax1 = axes
+# # Plot purity of CaCO3
+# fig,  axes= plt.subplots(1,1)
+# ax1 = axes
 
-im1 = ax1.imshow([Ca_Purity[i-1] for i in range(len(pHs),0,-1)], cmap="YlOrBr", interpolation='none')
-# ax1.set_aspect(1)
-ax1.set(xticks=np.arange(0, len(CO2s)+1, 4), xticklabels=np.arange(0, int(np.max(CO2s))+1, int(np.max(CO2s)/5)))
-ax1.set(yticks=np.arange(0, len(NaOHs)+1, 4), yticklabels=[0.05, 0.04, 0.03, 0.02, 0.01, 0])
-ax1.set_xlabel('CO2 addition (g)')
-ax1.set_ylabel('5M NaOH addition (L)')
-# cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
-cbar = fig.colorbar(im1)
-cbar.set_label('Calcite purity (%)')
-plt.rcParams['figure.dpi']=300
-plt.show()
+# im1 = ax1.imshow([Ca_Purity[i-1] for i in range(len(pHs),0,-1)], cmap="YlOrBr", interpolation='none')
+# # ax1.set_aspect(1)
+# ax1.set(xticks=np.arange(0, len(CO2s)+1, 4), xticklabels=np.arange(0, np.max(CO2s)*1.01, int(np.max(CO2s)/5)))
+# ax1.set(yticks=np.arange(0, len(NaOHs)+1, 4), yticklabels=[0.1, 0.08, 0.06, 0.04, 0.02, 0])
+# ax1.set_xlabel('CO2 addition (mg)')
+# ax1.set_ylabel('5M NaOH addition (L)')
+# # cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+# cbar = fig.colorbar(im1)
+# cbar.set_label('Calcite purity (%)')
+# plt.rcParams['figure.dpi']=300
+# plt.show()
 
 # #%%  best rr=99.88% (9000mg CO2 + 0.08L NaOH)
 # i, j = 12, 16
@@ -1098,14 +1138,14 @@ Ca_Purity_df = pd.DataFrame(Ca_Purity, columns=CO2s, index=NaOHs)
 Vol_df = pd.DataFrame(Vols, columns=CO2s, index=NaOHs)
     
 outpath = '/Users/zhuoranzhang/Documents/Crystallization_paper/ZLD_profile_results/'
-pH_filename = f'KBH_S2_pH.csv'
-Ca_filename = f'KBH_S2_Ca_rr.csv'
-Mag_filename = f'KBH_S2_MgCO3.csv'
-Bru_filename = f'KBH_S2_MgOH2.csv'
-Cal_filename = f'KBH_S2_CaCO3.csv'
-Por_filename = f'KBH_S2_CaOH2.csv'
-Ca_purity_filename =  f'KBH_S2_purity.csv'
-Vol_filename = f'KBH_S2_volume.csv'
+pH_filename = f'Permian_S2_pH.csv'
+Ca_filename = f'Permian_S2_Ca_rr.csv'
+Mag_filename = f'Permian_S2_MgCO3.csv'
+Bru_filename = f'Permian_S2_MgOH2.csv'
+Cal_filename = f'Permian_S2_CaCO3.csv'
+Por_filename = f'Permian_S2_CaOH2.csv'
+Ca_purity_filename =  f'Permian_S2_purity.csv'
+Vol_filename = f'Permian_S2_volume.csv'
 
 pH_df.to_csv(outpath+pH_filename)
 Ca_df.to_csv(outpath+Ca_filename)
@@ -1170,7 +1210,6 @@ def permian_step_3_alt(
 
     state.add("Brucite", add_brucite, "mg")
     state.set("Calcite", 0, "mg")
-    state.set("Magnesite", 0, "mg")
 
     # equilibrate(state)
 
@@ -1219,24 +1258,24 @@ def permian_step_3_alt(
 
 
 # Run for case
-permian_brine_output, permian_brine_state, permian_brine_system, permian_brine_props = permian_brine(RR=0.7)
+permian_brine_output, permian_brine_state, permian_brine_system, permian_brine_props = permian_brine(RR=0.5)
 output_1_PB, props_1_PB, outflow_mass_1_PB, out_brucite_1_PB, state_1_PB, system_1_PB = permian_step_1(state = permian_brine_state,
                                                                                      system=permian_brine_system,
                                                                                      add_NaOH_conc=5,
-                                                                                     add_NaOH_vol=0.009,
+                                                                                     add_NaOH_vol=0.025,
                                                                              )
 output_2_PB, props_2_PB, state_2_PB, system_2_PB = permian_step_2_alt(
                                                                              state= state_1_PB,
                                                                              system=system_1_PB,
                                                                              add_NaOH_conc=5,
-                                                                             add_NaOH_vol=0.025,
-                                                                             add_CO2 = 2750,
+                                                                             add_NaOH_vol=0.08,
+                                                                             add_CO2 = 9000,
                                                                             #  CO2_fug=0.0000000001,
                                                                              )
 output_3_PB, props_3_PB, outflow_mass_3, state_3_PB, system_3_PB = permian_step_3_alt(
                                                                              state= state_2_PB,
                                                                              system=system_2_PB,
-                                                                             add_CO2 = 1000,
+                                                                             add_CO2 = 2600,
                                                                              add_NaOH_conc=5,
                                                                              add_NaOH_vol=0,
                                                                              add_brucite=out_brucite_1_PB,
@@ -1250,8 +1289,7 @@ print('MgCO3(%)', float(props_3_PB.speciesAmount("Magnesite"))/(float(props_3_PB
 print('total Mg:', (float(props_3_PB.elementAmount("Mg"))) * molar_mass["Mg+2"])
 print('Ca in CaCO3:', float(props_3_PB.speciesAmount("Calcite")) * molar_mass["Ca+2"])
 print('total Ca: ', float(props_3_PB.elementAmount("Ca")) * molar_mass["Ca+2"])
-print('TDS (mg/L): ', (outflow_mass_3['Na+'] + outflow_mass_3['Cl-'] + outflow_mass_3['SO4-2'] + outflow_mass_3['CO3-2'] + outflow_mass_3['HCO3-']
-                       + outflow_mass_3['Mg+2'] + outflow_mass_3['Ca+2'] + outflow_mass_3['OH-'])/ output_3_PB['Volume'] / 1000)
+print('TDS (mg/L): ', (outflow_mass_3['Na+'] + outflow_mass_3['Cl-'] )/ output_3_PB['Volume'] / 1000)
 
 #%% Step 3: Plot
 def plot_step_3_alt(
@@ -1277,6 +1315,9 @@ def plot_step_3_alt(
     Nas = []
     Mgs = []
     Cas = []
+    CO3s = []
+    HCO3s = []
+    H2CO3s = []
 
     Mg_rr = []
 
@@ -1285,18 +1326,18 @@ def plot_step_3_alt(
 
     # for i in CO2s:
     for j in CO2s:
-        permian_brine_output, permian_brine_state, permian_brine_system, permian_brine_props = permian_brine(RR=0.7)
+        permian_brine_output, permian_brine_state, permian_brine_system, permian_brine_props = permian_brine(RR=0.5)
         output_1_PB, props_1_PB, outflow_mass_1_PB, out_brucite_1_PB, state_1_PB, system_1_PB = permian_step_1(state = permian_brine_state,
                                                                                             system=permian_brine_system,
                                                                                             add_NaOH_conc=5,
-                                                                                            add_NaOH_vol=0.009,
+                                                                                            add_NaOH_vol=0.025,
                                                                                     )
         output_2_PB, props_2_PB, state_2_PB, system_2_PB = permian_step_2_alt(
                                                                                     state= state_1_PB,
                                                                                     system=system_1_PB,
                                                                                     add_NaOH_conc=5,
-                                                                                    add_NaOH_vol=0.025,
-                                                                                    add_CO2 = 2750,
+                                                                                    add_NaOH_vol=0.08,
+                                                                                    add_CO2 = 9000,
                                                                                     #  CO2_fug=0.0000000001,
                                                                                     )
 
@@ -1311,12 +1352,15 @@ def plot_step_3_alt(
                                                                                     )
         # rrs.append(i)
 
-        
+        vol = float(props_3_PB.phaseProps("AqueousPhase").volume())
 
-        Brucites.append(float(props_3_PB.speciesAmount("Brucite")))
+        Brucites.append(float(props_3_PB.speciesAmount("Brucite")) / vol)
         # Hydromagnesites.append(float(props.speciesAmount("Hydromagnesite")))
-        Magnesites.append(float(props_3_PB.speciesAmount("Magnesite")))
-        Calcites.append(float(props_3_PB.speciesAmount("Calcite")))
+        Magnesites.append(float(props_3_PB.speciesAmount("Magnesite")) / vol)
+        Calcites.append(float(props_3_PB.speciesAmount("Calcite")) / vol)
+        CO3s.append(float(props_3_PB.speciesAmount("CO3-2")) / vol)
+        HCO3s.append(float(props_3_PB.speciesAmount("HCO3-")) / vol)
+        H2CO3s.append(float(props_3_PB.speciesAmount("H2CO3")) / vol)
         # Periclases.append(float(props.speciesAmount("Periclase")))
 
         temperatures.append(output_3_PB['temperature'])
@@ -1335,9 +1379,11 @@ def plot_step_3_alt(
 
     # ax2 = ax1.twinx()
     ax1.plot(CO2s, Magnesites, 'b-', label='MgCO3')
-    ax1.plot(CO2s, Calcites, 'r-', label='CaCO3')
+    # ax1.plot(CO2s, Calcites, 'r-', label='CaCO3')
     ax1.plot(CO2s, Brucites, 'g-', label='Mg(OH)2')
-    # ax1.plot(CO2s, Mgs, 'y-', label="Mg+2")
+    ax1.plot(CO2s, CO3s, 'r-', label="CO3")
+    ax1.plot(CO2s, HCO3s, 'y-', label="HCO3")
+    ax1.plot(CO2s, H2CO3s, 'p-', label="H2CO3")
 
     # ax2.plot(CO2s, pHs, 'y-', label='pH')
 
@@ -1359,15 +1405,15 @@ def plot_step_3_alt(
     plt.rcParams['figure.dpi']=300
     plt.show()
 
-    return Mgs, Magnesites, Brucites, Calcites, Mg_rr, pHs, vols
+    return Mgs, Magnesites, Brucites, Calcites, Mg_rr, pHs, vols,  CO3s, HCO3s, H2CO3s
 
 
-NaOH_vol = 0.005
-max_CO2 = 5000
+NaOH_vol = 0.02
+max_CO2 = 10000
 runs_CO2 = 50
 CO2s = [ i * max_CO2 / runs_CO2 for i in range(0,runs_CO2+1,1)]
 
-Mgs_3, Magnesites_3, Brucites_3, Calcites_3, Mg_rr_3, pHs_3, vols_3 = plot_step_3_alt(
+Mgs_3, Magnesites_3, Brucites_3, Calcites_3, Mg_rr_3, pHs_3, vols_3,CO3s_3, HCO3s_3, H2CO3s_3 = plot_step_3_alt(
                                                                 max_CO2=max_CO2,
                                                                 runs_CO2=runs_CO2,
                                                                 NaOH_vol = NaOH_vol,
@@ -1378,13 +1424,16 @@ results = {"added_CO2 (mg)": CO2s,
         "CaCO3 (mol/L)":Calcites_3,
         "Mg(OH)2 (mol/L)":Brucites_3,  
         "Mg carbonization rate (%)":Mg_rr_3, 
+        "CO3": CO3s_3,
+        "HCO3": HCO3s_3,
+        "H2CO3": H2CO3s_3,
         "pH":pHs_3, 
         "Volume (L)":vols_3,
         }
      
 df = pd.DataFrame(results)
 outpath = '/Users/zhuoranzhang/Documents/Crystallization_paper/ZLD_profile_results/'
-filename = f'KBH_S3_NaOH{NaOH_vol}L.csv'
+filename = f'Permian_S3_NaOH{NaOH_vol}L.csv'
 
 df.to_csv(outpath+filename)
 print(f'csv created for step 3 at {filename}')
